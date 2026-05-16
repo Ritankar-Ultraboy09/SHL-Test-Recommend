@@ -1,3 +1,6 @@
 /SHLrecommend
 .env
 /models
+/agents/__pycache__
+/__pycache__
+/.vscode
