@@ -10,7 +10,11 @@ client = OpenAI(base_url=GROQ_BASE_URL, api_key=GROQ_API_KEY)
 
 def parse_json(text: str) -> dict:
     text = re.sub(r"```json|```", "", text).strip()
-    return json.loads(text)
+    start = text.find("{")
+    end   = text.rfind("}") + 1
+    if start == -1 or end == 0:
+        raise ValueError("No JSON found in response")
+    return json.loads(text[start:end])
 
 
 def format_conversation(messages: list) -> str:
@@ -59,15 +63,16 @@ def is_in_scope(message: str) -> bool:
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=100
+            max_tokens=1000,
+            response_format={"type": "json_object"}
         )
         result = parse_json(resp.choices[0].message.content)
         return result.get("in_scope", True)
-    except Exception:
+    except Exception as e:
         return True
 
 
-def fallback_intent(messages: list) -> dict:
+# def fallback_intent(messages: list) -> dict:
     text     = " ".join(m["content"] for m in messages).lower()
     types    = []
     keywords = []
@@ -92,11 +97,13 @@ def extract_intent(messages: list) -> dict:
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=300
+            max_tokens=3000,
+             response_format={"type": "json_object"}
         )
         return parse_json(resp.choices[0].message.content)
-    except Exception:
-        return fallback_intent(messages)
+    except Exception as e:
+        print(f"INTENT EXTRACTION ERROR: {e}")
+        # return fallback_intent(messages) 
 
 
 def clarify(messages: list, intent: dict) -> dict:
@@ -115,7 +122,7 @@ def clarify(messages: list, intent: dict) -> dict:
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=150
+            max_tokens=150,
         )
         reply = resp.choices[0].message.content.strip()
         return build_response(reply, [], False)
@@ -157,11 +164,13 @@ def compare(messages: list, names: list) -> dict:
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=500
+            max_tokens=500,
+            response_format={"type": "json_object"}
         )
         result = parse_json(resp.choices[0].message.content)
         return build_response(result.get("reply", ""), [], False)
-    except Exception:
+    except Exception as e:
+        print(f"COMPARISON ERROR: {e}")
         return build_response(
             "I had trouble comparing those assessments. Please try again.",
             [], False
@@ -180,15 +189,20 @@ def recommend(messages: list, candidates: list) -> dict:
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=1000
+            max_tokens=2000,
+            response_format={"type": "json_object"}
         )
-        result = parse_json(resp.choices[0].message.content)
+        raw = resp.choices[0].message.content
+        print(f"RAW RESPONSE: {repr(raw)}") 
+        print(f"FINISH REASON: {resp.choices[0].finish_reason}") ## debug
+        result = parse_json(raw)
         return build_response(
             result.get("reply", ""),
             result.get("recommendations", []),
             result.get("end_of_conversation", False)
         )
-    except Exception:
+    except Exception as e:
+        print(f"RECOMMEND ERROR: {e}")
         return build_response(
             "I had trouble generating recommendations. Please try again.",
             [], False
@@ -213,8 +227,22 @@ def process_chat(messages: list) -> dict:
 
     intent = extract_intent(messages)
 
+    
+    if len(messages) > 2:
+        all_text = " ".join(m["content"] for m in messages).lower()
+        if "personality" in all_text and "P" not in intent["test_types"]:
+            intent["test_types"].append("P")
+        if ("ability" in all_text or "aptitude" in all_text) and "A" not in intent["test_types"]:
+            intent["test_types"].append("A")
+        if ("simulation" in all_text or "simulate" in all_text) and "S" not in intent["test_types"]:
+            intent["test_types"].append("S")
+        if "competency" in all_text and "C" not in intent["test_types"]:
+            intent["test_types"].append("C")
+
     if not intent.get("enough_context", False):
         return clarify(messages, intent)
 
     candidates = filter_retrieve(intent)
+    print(f"INTENT: {intent}")
+    print(f"CANDIDATES: {[c['name'] for c in candidates]}")
     return recommend(messages, candidates)
