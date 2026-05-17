@@ -10,7 +10,30 @@ VALID_URLS = {item["url"] for item in TOTAL_CAT}
 def normalize(text:str) -> str:
     return text.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
 
-    
+def _score_items(catalog, keywords, level, test_types=None):
+    results = []
+    for item in catalog:
+        if test_types and not any(t in item.get("test_types", []) for t in test_types):
+            continue
+        score = 0
+        name  = item.get("name", "").lower()
+        desc  = item.get("description", "").lower()
+        for kw in keywords:
+            kw_norm   = kw.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
+            name_norm = name.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
+            desc_norm = desc.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
+            if kw_norm in name_norm:
+                score += 2
+            if kw_norm in desc_norm:
+                score += 1
+        if level and level != "any":
+            job_levels = [l.lower() for l in item.get("job_levels", [])]
+            if any(level in l for l in job_levels):
+                score += 1
+        results.append((score, item))
+    results.sort(key=lambda x: x[0], reverse=True)
+    return results
+
 
 
 def filter_retrieve(intent: dict) -> list[dict]:
@@ -18,37 +41,22 @@ def filter_retrieve(intent: dict) -> list[dict]:
     keywords   = [kw.lower() for kw in intent.get("keywords", [])]
     level      = intent.get("level", "").lower()
 
-    results = []
+    if len(test_types) > 1:
+        per_type = []
+        for t in test_types:
+            type_catalog = [i for i in TOTAL_CAT if t in i.get("test_types", [])]
+            type_results = _score_items(type_catalog, keywords, level)
+            per_type.extend(type_results[:3])
 
-    for item in TOTAL_CAT:
-        if test_types:
-            if not any(t in item.get("test_types", []) for t in test_types):
-                continue
+        seen   = set()
+        merged = []
+        for score, item in sorted(per_type, key=lambda x: x[0], reverse=True):
+            if item["url"] not in seen:
+                seen.add(item["url"])
+                merged.append((score, item))
+        return [item for score, item in merged[:TOP_K]]
 
-        score = 0
-        name = item.get("name", "").lower()
-        description = item.get("description", "").lower()
-
-        for kw in keywords:
-            kw_norm   = normalize(kw)
-            name_norm = normalize(name)
-            desc_norm = normalize(description)
-
-            if kw_norm in name_norm:
-                score += 2   
-            if kw_norm in desc_norm:
-                score += 1  
-
-        if level and level != "any":
-            job_levels = [l.lower() for l in item.get("job_levels", [])]
-            if any(level in l for l in job_levels):
-                score += 1
-
-        
-        results.append((score, item))
-
-    results.sort(key=lambda x: x[0], reverse=True)
-    return [item for score, item in results[:TOP_K]]
+    return [item for score, item in _score_items(TOTAL_CAT, keywords, level, test_types)[:TOP_K]]
 
 def is_valid_url(url: str) -> bool:
     return url in VALID_URLS
