@@ -72,8 +72,6 @@ IN SCOPE:
 - Asking about test types, job levels, duration, timing , length
 - Refining or updating assessment recommendations
 - Job descriptions
--Follow-up questions about recommendations
--Any question about assessment details (duration, format, language)
 
 OUT OF SCOPE:
 - General hiring advice ("should I hire someone with a gap year?")
