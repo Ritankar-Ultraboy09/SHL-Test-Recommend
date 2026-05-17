@@ -6,8 +6,11 @@ with open(CAT_PATH, "r", encoding="utf-8") as f:
 
 VALID_URLS = {item["url"] for item in TOTAL_CAT}
 
+
 def normalize(text:str) -> str:
     return text.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
+
+    
 
 
 def filter_retrieve(intent: dict) -> list[dict]:
