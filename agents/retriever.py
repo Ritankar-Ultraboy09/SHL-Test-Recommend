@@ -6,7 +6,6 @@ with open(CAT_PATH, "r", encoding="utf-8") as f:
 
 VALID_URLS = {item["url"] for item in TOTAL_CAT}
 
-
 def normalize(text:str) -> str:
     return text.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
 
@@ -35,8 +34,6 @@ def _score_items(catalog, keywords, level, test_types=None):
     return results
 
     
-
-
 def filter_retrieve(intent: dict) -> list[dict]:
     test_types = intent.get("test_types", [])
     keywords   = [kw.lower() for kw in intent.get("keywords", [])]
@@ -47,7 +44,11 @@ def filter_retrieve(intent: dict) -> list[dict]:
         for t in test_types:
             type_catalog = [i for i in TOTAL_CAT if t in i.get("test_types", [])]
             type_results = _score_items(type_catalog, keywords, level)
-            per_type.extend(type_results[:3])
+            
+            relevant = [(s, i) for s, i in type_results if s > 0]
+            if not relevant:
+                relevant = type_results[:1]
+            per_type.extend(relevant[:3])
 
         seen   = set()
         merged = []

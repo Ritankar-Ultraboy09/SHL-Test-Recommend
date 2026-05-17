@@ -72,7 +72,7 @@ def is_in_scope(message: str) -> bool:
         return True
 
 
-# def fallback_intent(messages: list) -> dict:
+def fallback_intent(messages: list) -> dict:
     text     = " ".join(m["content"] for m in messages).lower()
     types    = []
     keywords = []
@@ -103,7 +103,7 @@ def extract_intent(messages: list) -> dict:
         return parse_json(resp.choices[0].message.content)
     except Exception as e:
         print(f"INTENT EXTRACTION ERROR: {e}")
-        # return fallback_intent(messages) 
+        return fallback_intent(messages)  #renabled fallbacks
 
 
 def clarify(messages: list, intent: dict) -> dict:
@@ -243,6 +243,4 @@ def process_chat(messages: list) -> dict:
         return clarify(messages, intent)
 
     candidates = filter_retrieve(intent)
-    print(f"INTENT: {intent}")
-    print(f"CANDIDATES: {[c['name'] for c in candidates]}")
     return recommend(messages, candidates)
