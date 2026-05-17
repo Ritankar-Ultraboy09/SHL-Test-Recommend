@@ -9,7 +9,8 @@ VALID_URLS = {item["url"] for item in TOTAL_CAT}
 def normalize(text:str) -> str:
     return text.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
 
-def _score_items(catalog, keywords, level, test_types=None):
+def _score_items(catalog, keywords, level, test_types=None, original_keywords=None):
+    original_keywords = [k.lower() for k in (original_keywords or [])]
     results = []
     for item in catalog:
         if test_types and not any(t in item.get("test_types", []) for t in test_types):
@@ -21,10 +22,11 @@ def _score_items(catalog, keywords, level, test_types=None):
             kw_norm   = kw.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
             name_norm = name.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
             desc_norm = desc.replace(".net", "dotnet").replace(".", "").replace(" ", "").lower()
+            weight = 3 if kw in original_keywords else 1
             if kw_norm in name_norm:
-                score += 2
+                score += 2 * weight
             if kw_norm in desc_norm:
-                score += 1
+                score += 1 * weight
         if level and level != "any":
             job_levels = [l.lower() for l in item.get("job_levels", [])]
             if any(level in l for l in job_levels):
@@ -37,14 +39,17 @@ def _score_items(catalog, keywords, level, test_types=None):
 def filter_retrieve(intent: dict) -> list[dict]:
     test_types = intent.get("test_types", [])
     keywords   = [kw.lower() for kw in intent.get("keywords", [])]
+    original_keywords = [kw.lower() for kw in intent.get("original_keywords", [])]
     level      = intent.get("level", "").lower()
+
+    print(f"ORIGINAL KEYWORDS: {original_keywords}")  # ← add this
+    print(f"ALL KEYWORDS: {keywords}")
 
     if len(test_types) > 1:
         per_type = []
         for t in test_types:
             type_catalog = [i for i in TOTAL_CAT if t in i.get("test_types", [])]
-            type_results = _score_items(type_catalog, keywords, level)
-            
+            type_results = _score_items(type_catalog, keywords, level, original_keywords=original_keywords)
             relevant = [(s, i) for s, i in type_results if s > 0]
             if not relevant:
                 relevant = type_results[:1]
@@ -58,7 +63,7 @@ def filter_retrieve(intent: dict) -> list[dict]:
                 merged.append((score, item))
         return [item for score, item in merged[:TOP_K]]
 
-    return [item for score, item in _score_items(TOTAL_CAT, keywords, level, test_types)[:TOP_K]]
+    return [item for score, item in _score_items(TOTAL_CAT, keywords, level, test_types, original_keywords)[:TOP_K]]
 
 def is_valid_url(url: str) -> bool:
     return url in VALID_URLS

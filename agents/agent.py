@@ -3,7 +3,7 @@ import re
 from openai import OpenAI
 from agents import retriever
 from config import GROQ_API_KEY, MAX_TURNS, MODEL_NAME, GROQ_BASE_URL, INTENT_MAP
-from agents.prompts import (GUARD_PROMPT, CLARIFICATION_PROMPT, RECOMMENDATION_PROMPT, COMPARISON_PROMPT, OUT_OF_SCOPE_REPLY, INTENT_EXTRACTION_PROMPT)
+from agents.prompts import (GUARD_PROMPT, CLARIFICATION_PROMPT, RECOMMENDATION_PROMPT, COMPARISON_PROMPT, OUT_OF_SCOPE_REPLY, INTENT_EXTRACTION_PROMPT, QUERY_EXPANSION_PROMPT)
 from agents.retriever import filter_retrieve, is_valid_url, by_name, TOTAL_CAT
 
 client = OpenAI(base_url=GROQ_BASE_URL, api_key=GROQ_API_KEY)
@@ -207,7 +207,25 @@ def recommend(messages: list, candidates: list) -> dict:
             "I had trouble generating recommendations. Please try again.",
             [], False
         )
+def expand_keywords(intent: dict) -> dict:
+    try:
+        intent["original_keywords"] = intent["keywords"].copy()
+        prompt = QUERY_EXPANSION_PROMPT.format(intent=json.dumps(intent))
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=200,
+            response_format={"type": "json_object"}
+        )
+        result = parse_json(resp.choices[0].message.content)
+        expanded = result.get("expanded_keywords", [])
 
+        original = intent["original_keywords"]
+        intent["keywords"] = original + [e for e in expanded if e not in original]
+        return intent
+    except Exception:
+        return intent
 
 def process_chat(messages: list) -> dict:
     if len(messages) > MAX_TURNS:
@@ -226,6 +244,7 @@ def process_chat(messages: list) -> dict:
         return compare(messages, names)
 
     intent = extract_intent(messages)
+    intent = expand_keywords(intent)
 
     
     if len(messages) > 2:
@@ -243,4 +262,6 @@ def process_chat(messages: list) -> dict:
         return clarify(messages, intent)
 
     candidates = filter_retrieve(intent)
+    print(f"EXPANDED KEYWORDS: {intent['keywords']}")
+    print(f"CANDIDATES: {[c['name'] for c in candidates]}")
     return recommend(messages, candidates)

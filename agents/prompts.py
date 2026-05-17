@@ -163,7 +163,33 @@ Return ONLY this JSON, nothing else:
   "end_of_conversation": false
 }}
 """
+QUERY_EXPANSION_PROMPT = """
+You are a search assistant for an HR assessment system.
 
+Given this hiring intent, expand the keywords to include related concepts
+that would appear in SHL assessment descriptions.
+
+Use these vocabulary hints per test type:
+- Ability & Aptitude (A): reasoning, numerical, deductive, verbal, verify, passage, reading
+- Biodata & SJT (B): scenarios, judgement, situational, managerial, scales, narrative
+- Competencies (C): competency, potential, strengths, working, environment, service
+- Development & 360 (D): feedback, participants, strengths, questionnaire, performance
+- Knowledge & Skills (K): knowledge, programming, concepts, architecture, administration
+- Personality & Behavior (P): personality, behavioural, occupational, questionnaire, style, talent
+- Simulations (S): simulation, simulated, automated, compliance, customer
+
+Intent: {intent}
+RULES:
+- For EACH test_type in the intent, add AT LEAST 3 vocabulary words from that type above
+- Keep ALL original keywords
+- Only add specific technical terms relevant to the role
+- Do NOT add generic words like working, environment, service, development, design
+
+Return ONLY JSON:
+{{
+  "expanded_keywords": ["word1", "word2", "word3"]
+}}
+"""
 OUT_OF_SCOPE_REPLY = {
     "reply": "I can only help with SHL assessment recommendations. Please ask me about assessments, test types, or hiring roles and I will find the right assessments for you.",
     "recommendations": [],
